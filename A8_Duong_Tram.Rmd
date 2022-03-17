@@ -1,0 +1,91 @@
+---
+title: "A8_Duong_Tram"
+author: "TramooD17"
+date: "15/03/2022"
+output: html_document
+---
+Assignment 8 - Metabarcoding  
+
+The Effects of Garlic Mustard on the Plant Community  
+
+Recently, the invasive plant species Alliaria petiolata, or garlic mustard, has been found in the Queen's University Biological Station (QUBS) plant community.  
+This report discusses the effects of garlic mustard on the QUBS plant community, if any, and - if there are any effects - whether it is the presence garlic mustard or the sampling population that has a stronger effect on plant communities.  
+
+The data set below contains the results of the conducted floristic survey:
+```{r}
+survey <- read.csv("./FloristicSurvey.csv")
+```
+
+The data contains the following parameters:  
+Quadrate – code for the 1m x 1m square in which samples were measured  
+Population – code for a specific sampling location at QUBS, determined by presence of garlic mustard nearby  
+Location – whether quadrates were ‘i’ (‘inside’) or ‘o’ (‘outside’) of garlic mustard patches  
+Rosettes – the number of garlic mustard rosettes  
+Bolting – the number of garlic mustard plants getting ready to flower  
+Budding – number of garlic mustard plants with buds  
+Bud_Flw, Flower, Flw_Sil, Silique – different stages of flowering  
+Claytonia, Anemone, … Unknown_9, mianthenum_racemosum – the 34 different species at all sites, where ‘Unknown’ is an unidentified species. All the sites with the same Unknown number have the respective species.  
+
+Question 1: What effect (if any) does garlic mustard have on the plant community?  
+
+Setup:
+```{r}
+library(ggplot2)
+library(ape)
+library(ggtree)
+library(vegan)
+```
+
+A numeric- and species-only data frame and distance matrix are made:
+```{r}
+fsurvey <- subset(survey,select=-c(Quadrate,Location,Bud_Flw,Flower,Flw_Sil,Sillique))
+sur_dist<- vegdist(fsurvey,method="bray",binary=F)
+```
+
+Non-metric multidimensional scaling is used to compare the composition of species per quadrate. The NMDS is generated:
+```{r}
+set.seed(13)
+NMDSsurv <- metaMDS(sur_dist, k=2)
+```
+```{r}
+PDat <- data.frame(NMDS1=NMDSsurv$points[,1], NMDS2=NMDSsurv$points[,2], Population=row.names(fsurvey))
+PDat<-merge(PDat,fsurvey,by="Population",all.x=T,all.y=F)
+```
+```{r}
+qplot(x=NMDS1,y=NMDS2,colour=Population,alpha=I(0.6),data=PDat)+theme_bw()
+```
+Figure 1. NMDS1 plot which shows the similarity between specific locations at QUBS by plant species composition.
+
+Based on the above figure, each location appears to be quite different from each other, with no correlation between sampling location and the species composition when comparing with the survey data.  
+
+Question 2: What has a stronger effect on plant communities: the presence/absence of garlic mustard (in/out) or sampling population?  
+
+A neighbour-joining tree is generated to look at the relationship between garlic mustard presence and species composition.
+```{r}
+isurvey <- subset(survey,select=-c(Quadrate,Population,Bud_Flw,Flower,Flw_Sil,Sillique))
+```
+```{r}
+survey_bin<-survey
+for (i in 1:nrow(survey_bin)){
+  for (j in 1:ncol(survey_bin)){
+    if(survey_bin[i,j]>0){
+      survey_bin[i,j]<-1
+    }
+  }
+}
+```
+```{r}
+sur_bin_dist<- dist(survey_bin,method="binary")
+```
+```{r}
+sur_tree <- nj(sur_bin_dist)
+
+dat <- data.frame(
+  SPECIES = sur_tree$tip.label,
+  PATTERN = sample(survey$Location, size = length(sur_tree$tip.label), replace = TRUE))
+
+ggtree(sur_tree, layout="rectangular", branch.length = "none") %<+% survey + geom_tiplab(offset = 7, hjust = .6) + theme(legend.position = "right")
+```
+Figure 2. Neighbour-Joining Tree that attempts to describe the correlation between the presence or absence of garlic mustard with the plant species composition.
+
+Comparing Figure 2 with Figure 1, it seems that the presence and absence of garlic mustard has a stronger effect on plant communities than sampling population.
